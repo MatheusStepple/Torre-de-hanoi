@@ -1,197 +1,162 @@
 ; =============================================
-; SEÇÃO DE DADOS - Onde armazenamos mensagens e variáveis
+; SEÇÃO DE DADOS
 ; =============================================
 section .data
-    ; Mensagem solicitando entrada do usuário
-    msg_input db 'Digite o numero de discos (1 a 99): ', 0
+    ; mensagem para entrada do utilizador.
+    msg_input db 'Digite o numero de discos: ', 0
 
-    ; Mensagem de erro para entrada inválida
-    msg_invalid db 'Numero invalido! Use um valor entre 1 e 99.', 10, 0
-
-    ; Caractere de nova linha
+    ; caractere de nova linha.
     msg_newline db 10, 0
 
-    ; Modelo de mensagem para exibir movimentos dos discos
-    msg db "disc: "       ; Início da mensagem
-    disco db " "          ; Irá conter o número do disco
-    db "   "              ; Alguns espaços
-    torre_saida db " "    ; Irá conter a torre de origem
-    db " -> "             ; Seta
-    torre_ida db " "      ; Irá conter a torre de destino
-    db 0xa                ; Nova linha no final
-    lenght equ $-msg      ; Calcula o tamanho total da mensagem
+    ; modelo da mensagem para movimentos de disco: "disc: N Orig -> Dest".
+    msg db "disc: "
+    disco db " "
+    db "   "
+    torre_saida db " "
+    db " -> "
+    torre_ida db " "
+    db 0xa
+    lenght equ $-msg
 
 ; =============================================
-; SEÇÃO BSS - Onde reservamos espaço para variáveis
+; SEÇÃO BSS
 ; =============================================
 section .bss
-    buffer resb 3         ; Reserva 3 bytes para o buffer de entrada do usuário
+    ; buffer para armazenar a entrada do utilizador (até 2 dígitos + newline).
+    buffer resb 3
 
 ; =============================================
-; SEÇÃO DE TEXTO - Onde o código do programa está
+; SEÇÃO DE TEXTO
 ; =============================================
 section .text
-    global _start         ; Indica ao linker onde o programa começa
+    ; ponto de entrada do programa.
+    global _start
 
 ; =============================================
 ; PROGRAMA PRINCIPAL
 ; =============================================
 _start:
-    ; Configura a pilha
-    push ebp
-    mov ebp, esp
+    ; imprime a mensagem de entrada.
+    mov edx, 26               ; tamanho da mensagem.
+    mov ecx, msg_input        ; endereço da mensagem.
+    mov ebx, 1                ; stdout.
+    mov eax, 4                ; sys_write.
+    int 0x80
 
-    ; Imprime a mensagem de entrada
-    mov edx, 35           ; Tamanho da mensagem
-    mov ecx, msg_input    ; Mensagem a ser impressa
-    mov ebx, 1            ; Descritor de arquivo (1 = stdout)
-    mov eax, 4            ; Número da syscall (4 = write)
-    int 128               ; Chama o kernel para imprimir
+    ; lê a entrada do utilizador.
+    mov eax, 3                ; sys_read.
+    mov ebx, 0                ; stdin.
+    mov ecx, buffer           ; buffer de destino.
+    mov edx, 3                ; bytes a ler.
+    int 0x80
 
-    ; Lê a entrada do usuário
-    mov eax, 3            ; Número da syscall (3 = read)
-    mov ebx, 0            ; Descritor de arquivo (0 = stdin)
-    mov ecx, buffer       ; Onde armazenar a entrada
-    mov edx, 3            ; Máximo de bytes para ler
-    int 128               ; Chama o kernel para ler
+    ; converte entrada ASCII para número.
+    xor eax, eax              ; zera EAX (acumulador).
+    mov edi, buffer           ; EDI aponta para o buffer.
 
-    ; Converte entrada ASCII para número
-    xor eax, eax          ; Limpa eax (zera)
-    mov edi, buffer       ; Aponta para o buffer de entrada
-
-; Loop para converter cada caractere em dígito
 loop_conversao:
-    mov bl, [edi]         ; Pega o próximo caractere
-    cmp bl, 10            ; Verifica se é newline (fim da entrada)
-    je finalizar_conversao ; Se for newline, finaliza
-    cmp bl, '0'           ; Verifica se caractere é menor que '0'
-    jl input_errado       ; Se for, entrada inválida
-    cmp bl, '9'           ; Verifica se caractere é maior que '9'
-    jg input_errado       ; Se for, entrada inválida
-    sub bl, '0'           ; Converte ASCII para número (subtrai '0')
-    imul eax, 10          ; Multiplica o total atual por 10
-    add eax, ebx          ; Adiciona novo dígito
-    inc edi               ; Vai para o próximo caractere
-    jmp loop_conversao    ; Repete
+    mov bl, [edi]             ; carrega caractere.
+    cmp bl, 10                ; verifica newline.
+    je finalizar_conversao
+    ; assume-se que a entrada é um dígito válido.
+    sub bl, '0'               ; converte ASCII para numérico.
+    imul eax, 10              ; multiplica acumulador por 10.
+    add eax, ebx              ; adiciona novo dígito.
+    inc edi                   ; próximo caractere.
+    jmp loop_conversao
 
-; Após conversão, valida se número está entre 1-99
 finalizar_conversao:
-    cmp eax, 1            ; Verifica se é menor que 1
-    jl input_errado
-    cmp eax, 99           ; Verifica se é maior que 99
-    jg input_errado
+    ; não há validação de intervalo (1 a 99).
 
-    ; Configura parâmetros para função de Hanoi:
-    ; Parâmetros são empilhados em ordem reversa:
-    ; 1. Torre de destino (3)
-    ; 2. Torre auxiliar (2)
-    ; 3. Torre de origem (1)
-    ; 4. Número de discos (entrada do usuário)
-    push dword 2          ; Torre auxiliar
-    push dword 3          ; Torre de destino
-    push dword 1          ; Torre de origem
-    push eax              ; Número de discos
-    call torre_de_hanoi   ; Chama a função de Hanoi
+    ; configura e chama a função de Hanoi.
+    push dword 2              ; torre auxiliar.
+    push dword 3              ; torre de destino.
+    push dword 1              ; torre de origem.
+    push eax                  ; número de discos.
+    call torre_de_hanoi
 
-    ; Imprime nova linha ao final
-    mov edx, 1            ; Tamanho (1 byte)
-    mov ecx, msg_newline  ; Caractere de nova linha
-    mov ebx, 1            ; stdout
-    mov eax, 4            ; syscall write
-    int 128               ; Chama o kernel
+    ; imprime nova linha no final.
+    mov edx, 1
+    mov ecx, msg_newline
+    mov ebx, 1
+    mov eax, 4                ; sys_write.
+    int 0x80
 
-    ; Encerra programa com sucesso
-    mov eax, 1            ; syscall exit
-    mov ebx, 0            ; código de saída 0
-    int 128               ; Chama o kernel
+    ; encerra programa com sucesso.
+    mov eax, 1                ; sys_exit.
+    mov ebx, 0                ; código de saída 0.
+    int 0x80
 
 ; =============================================
-; TRATAMENTO DE ERRO - Quando a entrada é inválida
-; =============================================
-input_errado:
-    ; Imprime mensagem de entrada inválida
-    mov edx, 47           ; Tamanho da mensagem
-    mov ecx, msg_invalid  ; Mensagem a ser impressa
-    mov ebx, 1            ; stdout
-    mov eax, 4            ; syscall write
-    int 128               ; Chama o kernel
-
-    ; Encerra com código de erro 1
-    mov eax, 1            ; syscall exit
-    mov ebx, 1            ; código de saída 1
-    int 128               ; Chama o kernel
-
-; =============================================
-; FUNÇÃO HANOI - Solucionador recursivo das Torres de Hanoi
+; FUNÇÃO HANOI (Recursiva)
 ; =============================================
 torre_de_hanoi:
-    push ebp              ; Salva o ponteiro base antigo
-    mov ebp, esp          ; Define novo ponteiro base
-    mov eax, [ebp+8]      ; Pega parâmetro do número de discos
-    cmp eax, 0            ; Se 0 discos, já terminou
-    je liberar            ; Pula para limpeza
+    push ebp                  ; salva EBP.
+    mov ebp, esp              ; configura novo EBP.
 
-    ; Primeira chamada recursiva: move n-1 discos da origem para a auxiliar
-    push dword [ebp+16]   ; Atual auxiliar vira destino
-    push dword [ebp+20]   ; Atual destino vira auxiliar
-    push dword [ebp+12]   ; Origem permanece origem
-    dec eax               ; Decrementa número de discos
-    push dword eax        ; Empilha n-1 como novo valor
-    call torre_de_hanoi   ; Chamada recursiva
-    add esp, 16           ; Limpa pilha após chamada
+    mov eax, [ebp+8]          ; carrega num_discos (n).
+    cmp eax, 0                ; caso base: se n é 0, retorna.
+    je liberar
 
-    ; Imprime o movimento atual
-    push dword [ebp+16]   ; Torre destino
-    push dword [ebp+12]   ; Torre origem
-    push dword [ebp+8]    ; Número do disco
-    call printar          ; Chama função de impressão
-    add esp, 12           ; Limpa pilha
+    ; 1ª chamada recursiva: move n-1 discos da origem para a auxiliar.
+    push dword [ebp+16]       ; nova auxiliar (antiga destino).
+    push dword [ebp+20]       ; novo destino (antiga auxiliar).
+    push dword [ebp+12]       ; nova origem (antiga origem).
+    dec eax                   ; n-1 discos.
+    push dword eax
+    call torre_de_hanoi
+    add esp, 16               ; limpa parâmetros da pilha.
 
-    ; Segunda chamada recursiva: move n-1 discos da auxiliar para o destino
-    push dword [ebp+12]   ; Origem atual vira auxiliar
-    push dword [ebp+16]   ; Auxiliar atual vira origem
-    push dword [ebp+20]   ; Destino permanece destino
-    mov eax, [ebp+8]      ; Pega número de discos
-    dec eax               ; Decrementa
-    push dword eax        ; Empilha n-1 como novo valor
-    call torre_de_hanoi   ; Chamada recursiva
+    ; imprime o movimento do disco atual.
+    push dword [ebp+20]       ; torre destino.
+    push dword [ebp+12]       ; torre origem.
+    push dword [ebp+8]        ; número do disco.
+    call printar
+    add esp, 12               ; limpa parâmetros da pilha.
 
-; Limpeza e retorno
+    ; 2ª chamada recursiva: move n-1 discos da auxiliar para o destino.
+    push dword [ebp+12]       ; nova auxiliar (antiga origem).
+    push dword [ebp+16]       ; novo destino (antiga destino).
+    push dword [ebp+20]       ; nova origem (antiga auxiliar).
+    mov eax, [ebp+8]          ; recarrega num_discos (n).
+    dec eax
+    push dword eax
+    call torre_de_hanoi
+
 liberar:
-    mov esp, ebp          ; Restaura ponteiro da pilha
-    pop ebp               ; Restaura ponteiro base
-    ret                   ; Retorna da função
+    mov esp, ebp              ; restaura ESP.
+    pop ebp                   ; restaura EBP.
+    ret                       ; retorna da função.
 
 ; =============================================
-; FUNÇÃO PRINT - Exibe cada movimento
+; FUNÇÃO PRINT
 ; =============================================
 printar:
-    push ebp              ; Salva ponteiro base antigo
-    mov ebp, esp          ; Define novo ponteiro base
+    push ebp                  ; salva EBP.
+    mov ebp, esp              ; configura novo EBP.
 
-    ; Prepara número do disco para exibir
-    mov eax, [ebp + 8]    ; Pega parâmetro do número do disco
-    add al, 48            ; Converte para ASCII (48 = '0')
-    mov [disco], al       ; Armazena na mensagem
+    ; prepara número do disco (ASCII).
+    mov eax, [ebp + 8]
+    add al, 48                ; converte para ASCII ('0').
+    mov [disco], al
 
-    ; Prepara torre de origem para exibir
-    mov eax, [ebp + 12]   ; Pega parâmetro da torre de origem
-    add al, 64            ; Converte para letra (65 = 'A')
-    mov [torre_saida], al ; Armazena na mensagem
+    ; prepara torre de origem (letra A, B, C).
+    mov eax, [ebp + 12]
+    add al, 64                ; converte para letra ('A'-1).
+    mov [torre_saida], al
 
-    ; Prepara torre de destino para exibir
-    mov eax, [ebp + 16]   ; Pega parâmetro da torre de destino
-    add al, 64            ; Converte para letra
-    mov [torre_ida], al   ; Armazena na mensagem
+    ; prepara torre de destino (letra A, B, C).
+    mov eax, [ebp + 16]
+    add al, 64                ; converte para letra ('A'-1).
+    mov [torre_ida], al
 
-    ; Imprime a mensagem completa do movimento
-    mov edx, lenght       ; Tamanho da mensagem
-    mov ecx, msg          ; Mensagem a imprimir
-    mov ebx, 1            ; stdout
-    mov eax, 4            ; syscall write
-    int 128               ; Chama o kernel
+    ; imprime a mensagem completa.
+    mov edx, lenght
+    mov ecx, msg
+    mov ebx, 1
+    mov eax, 4                ; sys_write.
+    int 0x80
 
-    ; Limpeza e retorno
-    mov esp, ebp          ; Restaura ponteiro da pilha
-    pop ebp               ; Restaura ponteiro base
-    ret                   ; Retorna da função
+    mov esp, ebp              ; restaura ESP.
+    pop ebp                   ; restaura EBP.
+    ret                       ; retorna da função.

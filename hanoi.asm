@@ -1,3 +1,7 @@
+; Matheus Stepple - Sistemas de Informação 2024.2
+
+; projeto feito em dupla com Matheus Henrique
+
 ; =============================================
 ; SEÇÃO DE DADOS
 ; =============================================
